@@ -1,4 +1,4 @@
-;;; org-noter.el --- A synchronized, Org-mode, document annotator       -*- lexical-binding: t; -*-
+O;;; org-noter.el --- A synchronized, Org-mode, document annotator       -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2017-2019  Gonçalo Santos
 
@@ -164,134 +164,134 @@ This is the default implementation that is called by
 `org-noter-create-session-from-document-hook`.
 ARG is the prefix argument passed to `org-noter`
 DOCUMENT-FILE-NAME is the document filename."
-      ;; NOTE(nox): `buffer-file-truename' is a workaround for modes that delete
-      ;; `document-file-name', and may not have the same results
-      (let* ((document-file-name (or (run-hook-with-args-until-success 'org-noter-get-buffer-file-name-hook major-mode)
-                                   document-file-name))
-             (document-path (or document-file-name buffer-file-truename
-                                (error "This buffer does not seem to be visiting any file")))
-             (document-name (file-name-nondirectory document-path))
-             (document-base (file-name-base document-name))
-             (document-directory (if document-file-name
-                                     (file-name-directory document-file-name)
-                                   (if (file-equal-p document-name buffer-file-truename)
-                                       default-directory
-                                     (file-name-directory buffer-file-truename))))
-             ;; NOTE(nox): This is the path that is actually going to be used, and should
-             ;; be the same as `document-file-name', but is needed for the truename workaround
-             (document-used-path (expand-file-name document-name document-directory))
+  ;; NOTE(nox): `buffer-file-truename' is a workaround for modes that delete
+  ;; `document-file-name', and may not have the same results
+  (let* ((document-file-name (or (run-hook-with-args-until-success 'org-noter-get-buffer-file-name-hook major-mode)
+                                 document-file-name))
+         (document-path (or document-file-name buffer-file-truename
+                            (error "This buffer does not seem to be visiting any file")))
+         (document-name (file-name-nondirectory document-path))
+         (document-base (file-name-base document-name))
+         (document-directory (if document-file-name
+                                 (file-name-directory document-file-name)
+                               (if (file-equal-p document-name buffer-file-truename)
+                                   default-directory
+                                 (file-name-directory buffer-file-truename))))
+         ;; NOTE(nox): This is the path that is actually going to be used, and should
+         ;; be the same as `document-file-name', but is needed for the truename workaround
+         (document-used-path (expand-file-name document-name document-directory))
 
-             (search-names (remove nil (append org-noter-default-notes-file-names
-                                       (list (concat document-base ".org"))
-                                       (list (run-hook-with-args-until-success 'org-noter-find-additional-notes-functions document-path)))))
-             notes-files-annotating ; List of files annotating document
-             notes-files ; List of found notes files (annotating or not)
+         (search-names (remove nil (append org-noter-default-notes-file-names
+                                           (list (concat document-base ".org"))
+                                           (list (run-hook-with-args-until-success 'org-noter-find-additional-notes-functions document-path)))))
+         notes-files-annotating ; List of files annotating document
+         notes-files ; List of found notes files (annotating or not)
 
-             (document-location (org-noter--doc-approx-location)))
+         (document-location (org-noter--doc-approx-location)))
 
-        ;; NOTE(nox): Check the search path
-        (dolist (path org-noter-notes-search-path)
-          (dolist (name search-names)
-            (let ((file-name (expand-file-name name path)))
-              (when (file-exists-p file-name)
-                (push file-name notes-files)
-                (when (org-noter--check-if-document-is-annotated-on-file document-path file-name)
-                  (push file-name notes-files-annotating))))))
+    ;; NOTE(nox): Check the search path
+    (dolist (path org-noter-notes-search-path)
+      (dolist (name search-names)
+        (let ((file-name (expand-file-name name path)))
+          (when (file-exists-p file-name)
+            (push file-name notes-files)
+            (when (org-noter--check-if-document-is-annotated-on-file document-path file-name)
+              (push file-name notes-files-annotating))))))
 
-        ;; NOTE(nox): `search-names' is in reverse order, so we only need to (push ...)
-        ;; and it will end up in the correct order
-        (dolist (name search-names)
-          (let ((directory (locate-dominating-file document-directory name))
-                file)
-            (when directory
-              (setq file (expand-file-name name directory))
-              (unless (member file notes-files) (push file notes-files))
-              (when (org-noter--check-if-document-is-annotated-on-file document-path file)
-                (push file notes-files-annotating)))))
+    ;; NOTE(nox): `search-names' is in reverse order, so we only need to (push ...)
+    ;; and it will end up in the correct order
+    (dolist (name search-names)
+      (let ((directory (locate-dominating-file document-directory name))
+            file)
+        (when directory
+          (setq file (expand-file-name name directory))
+          (unless (member file notes-files) (push file notes-files))
+          (when (org-noter--check-if-document-is-annotated-on-file document-path file)
+            (push file notes-files-annotating)))))
 
-        (setq search-names (nreverse search-names))
+    (setq search-names (nreverse search-names))
 
-        (when (or arg (not notes-files-annotating))
-          (when (or arg (not notes-files))
-            (let* ((notes-file-name (completing-read "What name do you want the notes to have? "
-                                                     search-names nil t))
-                   list-of-possible-targets
-                   target)
+    (when (or arg (not notes-files-annotating))
+      (when (or arg (not notes-files))
+        (let* ((notes-file-name (completing-read "What name do you want the notes to have? "
+                                                 search-names nil t))
+               list-of-possible-targets
+               target)
 
-              ;; NOTE(nox): Create list of targets from current path
-              (catch 'break
-                (let ((current-directory document-directory)
-                      file-name)
-                  (while t
-                    (setq file-name (expand-file-name notes-file-name current-directory))
-                    (when (file-exists-p file-name)
-                      (setq file-name (propertize file-name 'display
-                                                  (concat file-name
-                                                          (propertize " -- Exists!" 'face '(:foregorund "green")))))
-                      (push file-name list-of-possible-targets)
-                      (throw 'break nil))
+          ;; NOTE(nox): Create list of targets from current path
+          (catch 'break
+            (let ((current-directory document-directory)
+                  file-name)
+              (while t
+                (setq file-name (expand-file-name notes-file-name current-directory))
+                (when (file-exists-p file-name)
+                  (setq file-name (propertize file-name 'display
+                                              (concat file-name
+                                                      (propertize " -- Exists!" 'face '(:foregorund "green")))))
+                  (push file-name list-of-possible-targets)
+                  (throw 'break nil))
 
-                    (push file-name list-of-possible-targets)
+                (push file-name list-of-possible-targets)
 
-                    (when (string= current-directory
-                                   (setq current-directory
-                                         (file-name-directory (directory-file-name current-directory))))
-                      (throw 'break nil)))))
-              (setq list-of-possible-targets (nreverse list-of-possible-targets))
+                (when (string= current-directory
+                               (setq current-directory
+                                     (file-name-directory (directory-file-name current-directory))))
+                  (throw 'break nil)))))
+          (setq list-of-possible-targets (nreverse list-of-possible-targets))
 
-              ;; NOTE(nox): Create list of targets from search path
-              (dolist (path org-noter-notes-search-path)
-                (when (file-exists-p path)
-                  (let ((file-name (expand-file-name notes-file-name path)))
-                    (unless (member file-name list-of-possible-targets)
-                      (when (file-exists-p file-name)
-                        (setq file-name (propertize file-name 'display
-                                                    (concat file-name
-                                                            (propertize " -- Exists!" 'face '(:foreground "green"))))))
-                      (push file-name list-of-possible-targets)))))
+          ;; NOTE(nox): Create list of targets from search path
+          (dolist (path org-noter-notes-search-path)
+            (when (file-exists-p path)
+              (let ((file-name (expand-file-name notes-file-name path)))
+                (unless (member file-name list-of-possible-targets)
+                  (when (file-exists-p file-name)
+                    (setq file-name (propertize file-name 'display
+                                                (concat file-name
+                                                        (propertize " -- Exists!" 'face '(:foreground "green"))))))
+                  (push file-name list-of-possible-targets)))))
 
-              (setq target (completing-read "Where do you want to save it? " list-of-possible-targets
-                                            nil t))
-              (set-text-properties 0 (length target) nil target)
-              (unless (file-exists-p target) (write-region "" nil target))
+          (setq target (completing-read "Where do you want to save it? " list-of-possible-targets
+                                        nil t))
+          (set-text-properties 0 (length target) nil target)
+          (unless (file-exists-p target) (write-region "" nil target))
 
-              (setq notes-files (list target))))
+          (setq notes-files (list target))))
 
-          (when (> (length notes-files) 1)
-            (setq notes-files (list (completing-read "In which notes file should we create the heading? "
-                                                     notes-files nil t))))
+      (when (> (length notes-files) 1)
+        (setq notes-files (list (completing-read "In which notes file should we create the heading? "
+                                                 notes-files nil t))))
 
-          (if (member (car notes-files) notes-files-annotating)
-              ;; NOTE(nox): This is needed in order to override with the arg
-              (setq notes-files-annotating notes-files)
-            (with-current-buffer (find-file-noselect (car notes-files))
-              (goto-char (point-max))
-              (insert (if (save-excursion (beginning-of-line) (looking-at "[[:space:]]*$")) "" "\n")
-                      "* "
-                      org-noter-headline-title-decoration
-                      document-base
-                      org-noter-headline-title-decoration)
-              (org-entry-put nil org-noter-property-doc-file
-                             (file-relative-name document-used-path
-                                                 (file-name-directory (car notes-files)))))
-            (setq notes-files-annotating notes-files)))
+      (if (member (car notes-files) notes-files-annotating)
+          ;; NOTE(nox): This is needed in order to override with the arg
+          (setq notes-files-annotating notes-files)
+        (with-current-buffer (find-file-noselect (car notes-files))
+          (goto-char (point-max))
+          (insert (if (save-excursion (beginning-of-line) (looking-at "[[:space:]]*$")) "" "\n")
+                  "* "
+                  org-noter-headline-title-decoration
+                  document-base
+                  org-noter-headline-title-decoration)
+          (org-entry-put nil org-noter-property-doc-file
+                         (file-relative-name document-used-path
+                                             (file-name-directory (car notes-files)))))
+        (setq notes-files-annotating notes-files)))
 
-        (when (> (length (delete-dups notes-files-annotating)) 1)
-          (setq notes-files-annotating (list (completing-read "Which notes file should we open? "
-                                                              notes-files-annotating nil t))))
+    (when (> (length (delete-dups notes-files-annotating)) 1)
+      (setq notes-files-annotating (list (completing-read "Which notes file should we open? "
+                                                          notes-files-annotating nil t))))
 
-        (with-current-buffer (find-file-noselect (car notes-files-annotating))
-          (org-with-point-at (point-min)
-            (catch 'break
-              (while (re-search-forward (org-re-property org-noter-property-doc-file) nil)
-                (when (file-equal-p (expand-file-name (match-string 3)
-                                                      (file-name-directory (car notes-files-annotating)))
-                                    document-path)
-                  (if-let ((saved-location (org-entry-get nil org-noter-property-note-location)))
-                      (setq document-location (cons (string-to-number saved-location) 0)))
-                  (let ((org-noter--start-location-override document-location))
-                    (org-noter arg))
-                  (throw 'break t))))))))
+    (with-current-buffer (find-file-noselect (car notes-files-annotating))
+      (org-with-point-at (point-min)
+        (catch 'break
+          (while (re-search-forward (org-re-property org-noter-property-doc-file) nil)
+            (when (file-equal-p (expand-file-name (match-string 3)
+                                                  (file-name-directory (car notes-files-annotating)))
+                                document-path)
+              (if-let ((saved-location (org-entry-get nil org-noter-property-note-location)))
+                  (setq document-location (cons (string-to-number saved-location) 0)))
+              (let ((org-noter--start-location-override document-location))
+                (org-noter arg))
+              (throw 'break t))))))))
 
 ;;;###autoload
 (defun org-noter-start-from-dired ()
@@ -307,6 +307,14 @@ marked file."
       (save-excursion (org-noter))
       (bury-buffer))
     (other-frame 1)))
+
+
+(defun org-noter-enable-org-roam-integration ()
+  "Enable org-roam integration."
+  (interactive)
+  (load "org-noter-org-roam")
+  (setq org-noter-create-session-from-document-hook
+        '(org-noter--create-session-from-document-file-supporting-org-roam)))
 
 (provide 'org-noter)
 
